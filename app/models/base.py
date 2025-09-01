@@ -6,8 +6,8 @@ class Entity(db.Model):
     __abstract__ = True
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    created_at = db.Column(db.DateTime, default=datetime.now(), nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now(),nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now,nullable=False)
     deleted_at = db.Column(db.DateTime, nullable=True)
     flg_active = db.Column(db.Boolean, default=True, nullable=False)
     updated_by = db.Column(db.Integer, nullable=False)

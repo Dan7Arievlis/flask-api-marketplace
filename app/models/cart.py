@@ -1,23 +1,27 @@
 from app.libraries import db
 from datetime import datetime
+from .enums import CartStatusEnum, CartStatusType
 from .base import Entity
 
 class Cart(Entity):
-    # One to one
-    user_id = db.Column(db.Integer, nullable=False, unique=True)
-    # One to many
-    # items = 
+    __tablename__ = 'carts'
+    
+    # 1:1
+    user_id = db.Column(db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True, index=True)
+    user = db.relationship('User', back_populates='cart')
+    # 1:N
+    items = db.relationship('CartItem', back_populates='cart', cascade='all, delete-orphan', passive_deletes=True, lazy='selectin')
+    
     total = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
-    purchase_moment = db.Column(db.Timestemp, nullable=False, default=datetime.now())
-    # One to many
-    # payments = 
-    status = db.Column(db.Enum('open', 'waiting_payment', 'paid', 'canceled'), nullable=False, default='open')
+    purchase_moment = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    # 1:N
+    payments = db.relationship('Payment', back_populates='cart', cascade='all, delete-orphan', passive_deletes=True, lazy='selectin')
+    
+    status = db.Column(CartStatusType, nullable=False, default=CartStatusEnum.OPEN)
     
     
     def set_status(self, status: str):
-        valid_status = ['open', 'waiting_payment', 'paid', 'canceled']
-        if status.lower() in valid_status:
-            self.status = status.lower()
-            return
-        
-        self.status = 'open'
+        try:
+            self.status = CartStatusEnum[status.lower()]
+        except KeyError:
+            self.status = CartStatusEnum.OPEN

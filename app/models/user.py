@@ -1,10 +1,13 @@
 from app.libraries import db
 from .base import Entity
+from .enums import RolesEnum, RolesType
 from datetime import date
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
 class User(Entity):
+    __tablename__ = 'users'
+    
     username = db.Column(db.String(30), nullable=False, unique=True, index=True)
     email = db.Column(db.String(80), nullable=False, unique=True, index=True)
     password = db.Column(db.String(400), nullable=False)
@@ -14,14 +17,16 @@ class User(Entity):
     balance = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
     address = db.Column(db.String(200))
     telephone = db.Column(db.String(15))
-    role = db.Column(db.Enum('admin', 'user'), nullable=False, default='user')
-    
-    # One to one
-    # wishlist = 
-    # One to Many
-    # stocks = 
-    # One to one
-    # cart = 
+    role = db.Column(RolesType, nullable=False, default=RolesEnum.USER)
+    # 1:1
+    wishlist = db.relationship('Wishlist', back_populates='user', uselist=False, cascade='all, delete-orphan', passive_deletes=True, lazy='selectin')
+    # 1:N
+    stocks = db.relationship('Stock', back_populates='user', cascade='all, delete-orphan', passive_deletes=True, lazy='selectin', primaryjoin='User.id==Stock.user_id')
+    # 1:1
+    cart = db.relationship('Cart', back_populates='user', uselist=False, cascade='all, delete-orphan', passive_deletes=True, lazy='selectin')
+    # 1:N
+    products = db.relationship('Product', back_populates='owner', cascade='all, delete-orphan', passive_deletes=True, single_parent=True, lazy='selectin')
+
 
     def set_password(self, password):
         self.password = generate_password_hash(password)
@@ -40,12 +45,10 @@ class User(Entity):
     
     
     def set_role(self, role: str):
-        valid_roles = ['admin', 'user']
-        if role.lower() in valid_roles:
-            self.role = role.lower()
-            return
-        
-        self.role = 'user'
+        try:
+            self.role = RolesEnum[role.lower()]
+        except KeyError:
+            self.role = RolesEnum.USER
     
     
     def check_password(self, password):
