@@ -9,14 +9,14 @@ class User(Entity):
     __tablename__ = 'users'
     
     username = db.Column(db.String(30), nullable=False, unique=True, index=True)
-    email = db.Column(db.String(80), nullable=False, unique=True, index=True)
+    email = db.Column(db.String(130), nullable=False, unique=True, index=True)
     password = db.Column(db.String(400), nullable=False)
     first_name = db.Column(db.String(30), nullable=False)
-    last_name = db.Column(db.String(30), nullable=False)
+    last_name = db.Column(db.String(50), nullable=False)
     birth_date = db.Column(db.Date, nullable=False)
     balance = db.Column(db.Numeric(12, 2), nullable=False, default=0.00)
     address = db.Column(db.String(200))
-    telephone = db.Column(db.String(15))
+    phone = db.Column(db.String(15))
     role = db.Column(RolesType, nullable=False, default=RolesEnum.USER)
     # 1:1
     wishlist = db.relationship('Wishlist', back_populates='user', uselist=False, cascade='all, delete-orphan', passive_deletes=True, lazy='selectin')
@@ -40,8 +40,8 @@ class User(Entity):
         self.address = address
     
     
-    def set_telephone(self, telephone: str):
-        self.telephone = telephone
+    def set_phone(self, phone: str):
+        self.phone = phone
     
     
     def set_role(self, role: str):
@@ -62,7 +62,7 @@ class User(Entity):
     
     @property
     def is_admin(self):
-        return self.role == 'admin'
+        return self.role == RolesEnum.ADMIN
     
     
     @property
