@@ -12,7 +12,7 @@ class RolesEnum(str, Enum):
     USER = 'user'
 
 
-RolesType = db.Enem(RolesEnum, name='roles_enum', validate_strings=True)
+RolesType = db.Enum(RolesEnum, name='roles_enum', validate_strings=True)
 
 
 class ItemStatusEnum(str, Enum):
