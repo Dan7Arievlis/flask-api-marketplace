@@ -1,10 +1,10 @@
 from marshmallow import fields, validate, validates, ValidationError, post_load, validates_schema, post_dump
 from app.libraries import ma, db
 from decimal import Decimal, ROUND_HALF_UP
-# from models.enums import RolesEnum
+from app.libraries import norm
 from models.user import User
 from models.category import Category
-import re
+from models.enums import Perishables
 from datetime import date
 
 
@@ -79,7 +79,7 @@ class ProductCreateSchema(ma.Schema):
         perishables = {'comida', 'perecivel'}
         
         cat_names = data.get('categories') or []
-        normalized = {normalized(x) for x in cat_names if isinstance(x, str)}
+        normalized = {norm(x) for x in cat_names if isinstance(x, str)}
         require_perishable = any(x in perishables for x in normalized)
 
         if require_perishable:
@@ -95,7 +95,7 @@ class ProductCreateSchema(ma.Schema):
             raise ValidationError({'exp_date': 'Data de validade deve ser maior que data de fabricação.'})
         if exp and pub and not (exp > pub):
             raise ValidationError({'exp_date': 'Data de validade deve ser maior que data de publicação.'})
-
+    
     
     @post_load
     def normalize_data(self, data, **kwargs):
@@ -110,6 +110,98 @@ class ProductCreateSchema(ma.Schema):
             q = Decimal('0.01')
             data['price'] = (Decimal(data['price']).quantize(q, rounding=ROUND_HALF_UP))
 
+        return data
+
+
+class ProductUpdateSchema(ma.Schema):
+    name        = fields.Str(allow_none=True, validate=validate.Length(min=3, max=30))
+    description = fields.Str(allow_none=True, validate=validate.Length(min=3, max=180))
+    categories  = fields.List(fields.Raw(), allow_none=True)
+    price       = fields.Decimal(allow_none=True, as_string=True, places=2, validate=validate.Range(min=0))
+    fab_date    = fields.Date(allow_none=True)
+    exp_date    = fields.Date(allow_none=True)
+
+    
+    @validates('categories')
+    def validate_categories(self, value, **kwargs):
+        if value is None:
+            return
+        names, ids = [], []
+        for v in value:
+            if isinstance(v, int):
+                ids.append(v)
+            elif isinstance(v, str) and v.strip():
+                names.append(v.strip())
+            else:
+                raise ValidationError('Categorias devem ser nomes (str) ou ids (int).')
+
+        rows = []
+        if ids:
+            rows += Category.query.filter(Category.id.in_(ids)).all()
+        if names:
+            rows += Category.query.filter(Category.name.in_(names)).all()
+
+        seen, resolved = set(), []
+        for c in rows:
+            if c.id not in seen:
+                seen.add(c.id)
+                resolved.append(c)
+
+        found_ids = {c.id for c in resolved}
+        found_names = {c.name for c in resolved}
+        missing_ids = [i for i in ids if i not in found_ids]
+        missing_names = [n for n in names if n not in found_names]
+        if missing_ids or missing_names:
+            parts = []
+            if missing_ids:
+                parts.append(f"IDs inexistentes: {', '.join(map(str, missing_ids))}")
+            if missing_names:
+                parts.append(f"Nomes inexistentes: {', '.join(missing_names)}")
+            raise ValidationError('; '.join(parts))
+
+        self.context['__resolved_categories__'] = resolved
+
+    
+    @validates_schema
+    def validate_dates(self, data, **kwargs):
+        prod = self.context.get('product')
+
+        # categorias finais: novas (se vieram) senão as atuais do produto
+        if data.get('categories') is not None:
+            cats = self.context.get('__resolved_categories__', [])
+            final_names = [c.name for c in cats]
+        else:
+            final_names = [c.name for c in getattr(prod, 'categories', [])] if prod else []
+
+        perishable = any(norm(n) in Perishables for n in final_names)
+
+        fab = data.get('fab_date') or (getattr(prod, 'fab_date', None) if prod else None)
+        exp = data.get('exp_date') or (getattr(prod, 'exp_date', None) if prod else None)
+        pub = getattr(prod, 'publish_date', None)
+
+        if perishable:
+            missing = {}
+            if fab is None: missing['fab_date'] = ['fab_date é obrigatório para produtos perecíveis.']
+            if exp is None: missing['exp_date'] = ['exp_date é obrigatório para produtos perecíveis.']
+            if missing:
+                raise ValidationError(missing)
+
+        if fab and exp and fab >= exp:
+            raise ValidationError({'exp_date': 'exp_date deve ser maior que fab_date.'})
+        if exp and pub and exp <= pub:
+            raise ValidationError({'exp_date': 'exp_date deve ser maior que publish_date.'})
+    
+    
+    @post_load
+    def normalize(self, data, **kwargs):
+        if data.get('name') is not None:
+            data['name'] = data['name'].strip().title()
+        if data.get('description') is not None:
+            data['description'] = data['description'].strip()
+        if data.get('price') is not None:
+            data['price'] = Decimal(str(data['price'])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if 'categories' in data:
+            data['categories'] = self.context.pop('__resolved_categories__', [])
         return data
 
 

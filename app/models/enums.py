@@ -1,6 +1,12 @@
 from enum import Enum
 from app.libraries import db
 
+
+class Perishables(str, Enum):
+    COMIDA = 'comida'
+    PERECIVEL = 'perecivel'
+
+
 class RolesEnum(str, Enum):
     ADMIN = 'admin'
     USER = 'user'
